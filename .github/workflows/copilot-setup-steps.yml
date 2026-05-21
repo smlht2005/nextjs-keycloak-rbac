@@ -1,0 +1,47 @@
+name: "Copilot Setup Steps"
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env.local for build
+        run: |
+          SESSION_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
+          cat > .env.local << EOF
+          KEYCLOAK_URL=http://localhost:8080
+          KEYCLOAK_REALM=hospital
+          KEYCLOAK_CLIENT_ID=nextjs-bff
+          KEYCLOAK_CLIENT_SECRET=dev-secret-not-for-production
+          NEXTJS_URL=http://localhost:3000
+          SESSION_SECRET=${SESSION_SECRET}
+          PATIENT_SERVICE_URL=http://localhost:8081
+          ADMIN_SERVICE_URL=http://localhost:8082
+          EOF
+
+      - name: Build Next.js app
+        run: npm run build
