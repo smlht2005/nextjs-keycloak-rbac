@@ -19,7 +19,7 @@
   },
 
   "postCreateCommand": "sh /workspace/.devcontainer/setup.sh",
-  "postStartCommand": "apk add --no-cache nginx 2>/dev/null; KC_HOST=${CODESPACE_NAME:+${CODESPACE_NAME}-8080.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}}; KC_HOST=${KC_HOST:-localhost:8080}; printf \"server{listen 8080;location/{proxy_pass http://keycloak:8080;proxy_set_header X-Forwarded-Proto https;proxy_set_header X-Forwarded-Host ${KC_HOST};proxy_set_header X-Forwarded-Port 443;proxy_set_header Host \\$host;proxy_buffer_size 128k;proxy_buffers 8 128k;}}\" > /etc/nginx/http.d/kc.conf && rm -f /etc/nginx/http.d/default.conf && nginx -t && nginx && echo \"nginx → ${KC_HOST}\" && cd /workspace && npm run dev",
+  "postStartCommand": "apk add --no-cache nginx 2>/dev/null; npm install -g pm2 --silent 2>/dev/null; KC_HOST=${CODESPACE_NAME:+${CODESPACE_NAME}-8080.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}}; KC_HOST=${KC_HOST:-localhost:8080}; printf \"server{listen 8080;location/{proxy_pass http://keycloak:8080;proxy_set_header X-Forwarded-Proto https;proxy_set_header X-Forwarded-Host ${KC_HOST};proxy_set_header X-Forwarded-Port 443;proxy_set_header Host \\$host;proxy_buffer_size 128k;proxy_buffers 8 128k;}}\" > /etc/nginx/http.d/kc.conf && rm -f /etc/nginx/http.d/default.conf && nginx -t && nginx && echo \"nginx → ${KC_HOST}\" && cd /workspace && pm2 delete nextjs 2>/dev/null; pm2 start npm --name nextjs -- run dev && pm2 logs nextjs --lines 0",
 
   "customizations": {
     "vscode": {

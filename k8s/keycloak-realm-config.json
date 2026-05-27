@@ -2,49 +2,96 @@
   "realm": "hospital",
   "enabled": true,
   "sslRequired": "external",
-  "clients": [{
-    "clientId": "nextjs-bff",
-    "enabled": true,
-    "publicClient": false,
-    "standardFlowEnabled": true,
-    "directAccessGrantsEnabled": false,
-    "attributes": { "pkce.code.challenge.method": "S256" },
-    "redirectUris": [
-      "https://his.hospital.internal/api/auth/callback"
-    ],
-    "webOrigins": ["https://his.hospital.internal"],
-    "secret": "${KEYCLOAK_CLIENT_SECRET}"
-  }],
+  "clients": [
+    {
+      "clientId": "nextjs-bff",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "serviceAccountsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "redirectUris": [
+        "https://his.hospital.internal/api/auth/callback"
+      ],
+      "webOrigins": [
+        "https://his.hospital.internal"
+      ],
+      "secret": "${KEYCLOAK_CLIENT_SECRET}"
+    }
+  ],
   "roles": {
     "realm": [
-      { "name": "admin",  "description": "Full system access" },
-      { "name": "doctor", "description": "Clinical read/write" },
-      { "name": "nurse",  "description": "Patient read + vitals write" },
-      { "name": "viewer", "description": "Read-only access" }
+      {
+        "name": "admin",
+        "description": "Full system access"
+      },
+      {
+        "name": "doctor",
+        "description": "Clinical read/write"
+      },
+      {
+        "name": "nurse",
+        "description": "Patient read + vitals write"
+      },
+      {
+        "name": "viewer",
+        "description": "Read-only access"
+      }
     ]
   },
   "groups": [
-    { "name": "admin-group",  "realmRoles": ["admin"]  },
-    { "name": "doctor-group", "realmRoles": ["doctor"] },
-    { "name": "nurse-group",  "realmRoles": ["nurse"]  },
-    { "name": "viewer-group", "realmRoles": ["viewer"] }
+    {
+      "name": "admin-group",
+      "realmRoles": [
+        "admin"
+      ]
+    },
+    {
+      "name": "doctor-group",
+      "realmRoles": [
+        "doctor"
+      ]
+    },
+    {
+      "name": "nurse-group",
+      "realmRoles": [
+        "nurse"
+      ]
+    },
+    {
+      "name": "viewer-group",
+      "realmRoles": [
+        "viewer"
+      ]
+    }
   ],
-  "clientScopes": [{
-    "name": "roles",
-    "protocol": "openid-connect",
-    "protocolMappers": [{
-      "name": "realm-roles-mapper",
+  "clientScopes": [
+    {
+      "name": "roles",
       "protocol": "openid-connect",
-      "protocolMapper": "oidc-usermodel-realm-role-mapper",
-      "config": {
-        "claim.name": "realm_access.roles",
-        "jsonType.label": "String",
-        "multivalued": "true",
-        "access.token.claim": "true",
-        "id.token.claim": "true",
-        "userinfo.token.claim": "true"
-      }
-    }]
-  }],
-  "defaultDefaultClientScopes": ["profile", "email", "roles"]
+      "protocolMappers": [
+        {
+          "name": "realm-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "defaultDefaultClientScopes": [
+    "profile",
+    "email",
+    "roles"
+  ]
 }
