@@ -9,6 +9,8 @@ export interface AuthContext {
   payload:     KeycloakJWTPayload
   roles:       AppRole[]
   username:    string
+  email:       string
+  fullName:    string
 }
 
 export async function requireAuth(): Promise<AuthContext> {
@@ -35,7 +37,14 @@ export async function requireAuth(): Promise<AuthContext> {
     await session.destroy(); redirect('/api/auth/login')
   }
   const roles = (payload!.realm_access?.roles ?? []) as AppRole[]
-  return { accessToken: session.accessToken, payload: payload!, roles, username: payload!.preferred_username ?? '' }
+  return {
+    accessToken: session.accessToken,
+    payload: payload!,
+    roles,
+    username: payload!.preferred_username ?? '',
+    email:    payload!.email ?? '',
+    fullName: payload!.name ?? '',
+  }
 }
 
 export async function requireRoles(allowedRoles: AppRole[]): Promise<AuthContext> {

@@ -109,7 +109,7 @@ if [ -n "$CODESPACE_NAME" ]; then
       -H "Authorization: Bearer $ADMIN_TOKEN" \
       -H "Content-Type: application/json" \
       "http://keycloak:8080/admin/realms/hospital/clients/$CLIENT_UUID" \
-      -d "{\"clientId\":\"nextjs-bff\",\"redirectUris\":[\"https://${CODESPACE_NAME}-3000.app.github.dev/api/auth/callback\",\"http://localhost:3000/api/auth/callback\"],\"webOrigins\":[\"+\"]}")
+      -d "{\"clientId\":\"nextjs-bff\",\"redirectUris\":[\"${NEXTJS_URL}/api/auth/callback\",\"http://localhost:3000/api/auth/callback\"],\"webOrigins\":[\"+\"]}")
     if [ "$STATUS" = "204" ]; then
       echo "✅ redirect URI 更新成功 → https://${CODESPACE_NAME}-3000.app.github.dev/api/auth/callback"
     else

@@ -410,7 +410,7 @@ await requireRoles(['admin'])
    └─ 授權端點?response_type=code
               &client_id=nextjs-bff
               &redirect_uri=/api/auth/callback
-              &scope=openid profile email
+              &scope=openid
               &state={state}
               &code_challenge={code_challenge}
               &code_challenge_method=S256
@@ -451,9 +451,9 @@ await requireRoles(['admin'])
 4. 儲存令牌至加密 Session
    ├─ access_token（用於呼叫微服務）
    ├─ refresh_token（用於刷新過期的 access_token）
-   ├─ id_token（用於登出時的 id_token_hint）
    ├─ expiresAt（Unix 時間戳，用於過期判斷）
-   └─ 清除 codeVerifier 與 state（一次性使用）
+   ├─ 清除 codeVerifier 與 state（一次性使用）
+   └─ ⚠️  id_token 不存入 Session（三個 JWT 合計超過 4KB 瀏覽器 Cookie 限制）
 
 5. redirect('/dashboard')
 ```
@@ -477,11 +477,9 @@ await requireRoles(['admin'])
 3. 重導向至 Keycloak 登出端點
    └─ ?client_id=nextjs-bff
       &post_logout_redirect_uri={NEXTJS_URL}/login
-      &id_token_hint={id_token}（若有）
 ```
 
-**`id_token_hint` 的用途：**
-Keycloak 根據此參數確認要登出的 SSO Session，讓 Keycloak 完成完整的 Single Logout，避免用戶仍能透過其他 Keycloak 客戶端訪問系統。
+> ⚠️ `id_token_hint` 未傳送（`idToken` 不儲存於 Session 以避免 Cookie 超過 4KB 上限）。Keycloak 在沒有 `id_token_hint` 的情況下仍可完成本地登出並重導向至指定 URI。
 
 ---
 
@@ -585,10 +583,10 @@ function requireEnv(name: string): string {
 interface SessionData {
   accessToken?:  string  // Keycloak JWT Access Token
   refreshToken?: string  // 用於刷新 Access Token
-  idToken?:      string  // 用於登出時的 id_token_hint
   expiresAt?:    number  // Access Token 過期的 Unix 時間戳
   codeVerifier?: string  // PKCE code_verifier（登入流程中暫存）
   state?:        string  // CSRF 防護 state（登入流程中暫存）
+  // ⚠️ idToken 不存入 Session：三個 JWT 合計 ~4.3KB 超過瀏覽器 4KB Cookie 上限
 }
 ```
 
@@ -598,7 +596,7 @@ interface SessionData {
 |---|---|---|
 | `httpOnly` | `true` | JavaScript 無法讀取 Cookie |
 | `secure` | `true` | 僅透過 HTTPS 傳輸 |
-| `sameSite` | `'strict'` | 嚴格防止跨站請求攜帶 Cookie |
+| `sameSite` | `'lax'` | 允許跨站 Redirect 攜帶 Cookie（OAuth Callback 必要）|
 | `maxAge` | `3600`（1 小時） | Cookie 最大存活時間 |
 
 **加密原理：**
@@ -662,12 +660,13 @@ generateState() → crypto.randomBytes(16).toString('hex')
 
 **共用設定：**
 ```typescript
-const FETCH_OPTS = {
+// ⚠️ AbortSignal.timeout() 必須每次呼叫時建立，不能設為模組常數。
+// 模組常數只建立一次，5 秒後 signal 永久 aborted，所有後續 fetch 立刻失敗。
+const fetchOpts = () => ({
   method: 'POST',
   headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  signal: AbortSignal.timeout(5000),  // 5 秒超時，防止網路懸掛
-}
-```
+  signal: AbortSignal.timeout(5000),  // 每次呼叫時重新建立，5 秒計時重新開始
+})
 
 **兩個函數：**
 
@@ -762,7 +761,14 @@ Middleware 故意只做輕量檢查，因為 Edge Runtime 不支援某些 Node.j
 | `publicClient` | `false` | 機密客戶端，需要 client_secret |
 | `standardFlowEnabled` | `true` | 啟用授權碼流程 |
 | `directAccessGrantsEnabled` | `false` | 停用密碼憑證流程（更安全） |
-| `pkceCodeChallengeMethod` | `S256` | 強制使用 PKCE S256 |
+| `pkce.code.challenge.method` | `S256` | 強制使用 PKCE S256（Keycloak 24 `attributes` 寫法）|
+
+**Protocol Mappers（必要設定）：**
+
+| Mapper 名稱 | 類型 | 用途 |
+|---|---|---|
+| `audience-mapper` | `oidc-audience-mapper` | 在 access token 的 `aud` claim 加入 `nextjs-bff`，讓 JWT audience 驗證通過 |
+| `username` | `oidc-usermodel-property-mapper` | 將 Keycloak `username` 屬性對應到 JWT 的 `preferred_username` claim |
 
 **Realm 角色：**
 `admin`、`doctor`、`nurse`、`viewer`
@@ -894,7 +900,10 @@ npm run audit  # 等同於 npm audit --audit-level=high
 
 | 決策 | 理由 |
 |---|---|
-| **iron-session 加密 Cookie** | `refresh_token` 永不暴露給前端 JS；httpOnly + Secure + SameSite=Strict 三重防護 |
+| **iron-session 加密 Cookie** | `refresh_token` 永不暴露給前端 JS；httpOnly + Secure + SameSite=Lax 防護 |
+| **SameSite=Lax（非 Strict）** | OAuth Callback 是跨站 Redirect（Keycloak → Next.js），`Strict` 會讓瀏覽器在 Redirect 時不帶 Cookie，導致 state 驗證失敗 |
+| **Session 不存 idToken** | Access Token + Refresh Token 已達 ~3KB；加入 idToken 會使加密後 Cookie 超過瀏覽器 4KB 限制 |
+| **fetchOpts() 函數（非常數）** | `AbortSignal.timeout()` 在建立時開始計時，若定義為模組常數，5 秒後 signal 永久 aborted，所有 fetch 失敗 |
 | **角色驗證在 BFF API Route** | Middleware 執行於 Edge Runtime；jose JWKS 驗證需要 Node.js Runtime，不能在 Edge 執行 |
 | **JWKS 快取** | `createRemoteJWKSet` 快取公鑰，避免每次請求都向 Keycloak 查詢公鑰 |
 | **Keycloak Groups → Roles** | 可擴展性高；將用戶加入群組即可自動取得角色，無需逐一設定 |
@@ -911,11 +920,12 @@ npm run audit  # 等同於 npm audit --audit-level=high
 
 | 變數 | 必填 | 說明 |
 |---|:---:|---|
-| `KEYCLOAK_URL` | ✅ | Keycloak 伺服器位址（例：`https://keycloak.hospital.internal`） |
-| `KEYCLOAK_REALM` | ✅ | Realm 名稱（例：`hospital`） |
-| `KEYCLOAK_CLIENT_ID` | ✅ | 用戶端 ID（例：`nextjs-bff`） |
-| `KEYCLOAK_CLIENT_SECRET` | ✅ | 用戶端密鑰（從 Keycloak Admin 取得） |
-| `NEXTJS_URL` | ✅ | 應用程式對外網址（例：`https://his.hospital.internal`） |
+| `KEYCLOAK_URL` | ✅ | Keycloak **公開** URL（瀏覽器導向登入用，例：`https://keycloak.hospital.internal`）|
+| `KEYCLOAK_INTERNAL_URL` | ❌ | Keycloak **內部** URL（Server-side token exchange / JWKS，例：`http://keycloak:8080`）；未設定時退而使用 `KEYCLOAK_URL` |
+| `KEYCLOAK_REALM` | ✅ | Realm 名稱（例：`hospital`）|
+| `KEYCLOAK_CLIENT_ID` | ✅ | 用戶端 ID（例：`nextjs-bff`）|
+| `KEYCLOAK_CLIENT_SECRET` | ✅ | 用戶端密鑰（從 Keycloak Admin 取得）|
+| `NEXTJS_URL` | ✅ | 應用程式對外網址（無尾部斜線，例：`https://his.hospital.internal`）|
 | `SESSION_SECRET` | ✅ | Cookie 加密金鑰（最少 32 字元，使用 `openssl rand -hex 32` 產生） |
 | `PATIENT_SERVICE_URL` | ✅ | 病患微服務內部位址（例：`http://patient-service:8081`） |
 | `ADMIN_SERVICE_URL` | ✅ | 管理微服務內部位址（例：`http://admin-service:8082`） |
