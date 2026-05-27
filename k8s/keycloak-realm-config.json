@@ -8,7 +8,7 @@
     "publicClient": false,
     "standardFlowEnabled": true,
     "directAccessGrantsEnabled": false,
-    "pkceCodeChallengeMethod": "S256",
+    "attributes": { "pkce.code.challenge.method": "S256" },
     "redirectUris": [
       "https://his.hospital.internal/api/auth/callback"
     ],

@@ -31,20 +31,22 @@ services:
       # Allow any hostname so Codespace dynamic URLs work
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     volumes:
       - ../k8s/keycloak-realm-config.dev.json:/opt/keycloak/data/import/realm.json
 
   app:
     image: node:20-alpine
-    command: sleep infinity
+    # 安裝 bash 讓 VS Code 終端機可正常使用
+    command: sh -c "apk add --no-cache bash && sleep infinity"
     working_dir: /workspace
     volumes:
       - ..:/workspace:cached
       - node_modules:/workspace/node_modules
-    ports:
-      - "3000:3000"
+      - /var/run/docker.sock:/var/run/docker.sock
+    expose:
+      - "3000"
     depends_on:
       - keycloak
 

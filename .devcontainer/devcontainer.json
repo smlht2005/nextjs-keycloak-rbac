@@ -8,7 +8,7 @@
   "portsAttributes": {
     "3000": {
       "label": "Next.js App",
-      "onAutoForward": "openBrowser",
+      "onAutoForward": "notify",
       "visibility": "public"
     },
     "8080": {
@@ -18,8 +18,8 @@
     }
   },
 
-  "postCreateCommand": "bash /workspace/.devcontainer/setup.sh",
-  "postStartCommand": "cd /workspace && npm run dev",
+  "postCreateCommand": "sh /workspace/.devcontainer/setup.sh",
+  "postStartCommand": "apk add --no-cache nginx 2>/dev/null; KC_HOST=${CODESPACE_NAME:+${CODESPACE_NAME}-8080.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-app.github.dev}}; KC_HOST=${KC_HOST:-localhost:8080}; printf \"server{listen 8080;location/{proxy_pass http://keycloak:8080;proxy_set_header X-Forwarded-Proto https;proxy_set_header X-Forwarded-Host ${KC_HOST};proxy_set_header X-Forwarded-Port 443;proxy_set_header Host \\$host;proxy_buffer_size 128k;proxy_buffers 8 128k;}}\" > /etc/nginx/http.d/kc.conf && rm -f /etc/nginx/http.d/default.conf && nginx -t && nginx && echo \"nginx → ${KC_HOST}\" && cd /workspace && npm run dev",
 
   "customizations": {
     "vscode": {
@@ -28,12 +28,21 @@
         "bradlc.vscode-tailwindcss",
         "esbenp.prettier-vscode",
         "ms-azuretools.vscode-docker",
-        "pflannery.vscode-versionlens"
+        "pflannery.vscode-versionlens",
+        "mhutchie.git-graph",
+        "eamodio.gitlens"
       ],
       "settings": {
         "editor.defaultFormatter": "esbenp.prettier-vscode",
         "editor.formatOnSave": true,
-        "typescript.tsdk": "node_modules/typescript/lib"
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "terminal.integrated.defaultProfile.linux": "sh",
+        "terminal.integrated.profiles.linux": {
+          "sh": {
+            "path": "/bin/sh",
+            "args": []
+          }
+        }
       }
     }
   }
