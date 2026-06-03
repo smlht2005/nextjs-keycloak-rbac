@@ -1,0 +1,129 @@
+{
+  "realm": "hospital",
+  "enabled": true,
+  "sslRequired": "external",
+  "clients": [
+    {
+      "clientId": "nextjs-bff",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "redirectUris": [
+        "https://REPLACE_NEXTJS_DOMAIN/api/auth/callback"
+      ],
+      "webOrigins": [
+        "https://REPLACE_NEXTJS_DOMAIN"
+      ],
+      "secret": "REPLACE_CLIENT_SECRET",
+      "protocolMappers": [
+        {
+          "name": "audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "nextjs-bff",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "admin",  "description": "Full system access" },
+      { "name": "doctor", "description": "Clinical read/write" },
+      { "name": "nurse",  "description": "Patient read + vitals write" },
+      { "name": "viewer", "description": "Read-only access" }
+    ]
+  },
+  "users": [
+    {
+      "username": "admin-user",
+      "firstName": "Admin",
+      "lastName": "User",
+      "email": "admin-user@hospital.local",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "Admin1234!", "temporary": true }],
+      "realmRoles": ["admin"]
+    },
+    {
+      "username": "doctor-user",
+      "firstName": "Doctor",
+      "lastName": "User",
+      "email": "doctor-user@hospital.local",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "Doctor1234!", "temporary": true }],
+      "realmRoles": ["doctor"]
+    },
+    {
+      "username": "nurse-user",
+      "firstName": "Nurse",
+      "lastName": "User",
+      "email": "nurse-user@hospital.local",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "Nurse1234!", "temporary": true }],
+      "realmRoles": ["nurse"]
+    },
+    {
+      "username": "viewer-user",
+      "firstName": "Viewer",
+      "lastName": "User",
+      "email": "viewer-user@hospital.local",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "Viewer1234!", "temporary": true }],
+      "realmRoles": ["viewer"]
+    }
+  ],
+  "groups": [
+    { "name": "admin-group",  "realmRoles": ["admin"]  },
+    { "name": "doctor-group", "realmRoles": ["doctor"] },
+    { "name": "nurse-group",  "realmRoles": ["nurse"]  },
+    { "name": "viewer-group", "realmRoles": ["viewer"] }
+  ],
+  "clientScopes": [
+    {
+      "name": "roles",
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "realm-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "defaultDefaultClientScopes": ["profile", "email", "roles"]
+}
