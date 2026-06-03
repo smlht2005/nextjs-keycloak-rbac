@@ -1,0 +1,21 @@
+name: Deploy to Zeabur
+
+on:
+  push:
+    branches:
+      - claude/codespaces-zeabur-deploy-ddb1v
+      - main
+
+jobs:
+  deploy:
+    name: Deploy Next.js to Zeabur
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Zeabur
+        uses: zeabur/deploy-action@v1
+        with:
+          service-name: nextjs-rbac
+          token: ${{ secrets.ZEABUR_TOKEN }}
