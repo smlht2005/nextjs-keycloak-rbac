@@ -198,8 +198,9 @@ export default function UsersClient({ initialUsers }: { initialUsers: KeycloakUs
     setSaving(true); setFormError("");
     try {
       const res = await fetch("/api/bff/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "建立失敗");
+      const text = await res.text();
+      const data: Record<string, unknown> = text ? JSON.parse(text) : {};
+      if (!res.ok) throw new Error((data.error as string) ?? `建立失敗 (${res.status})`);
       await refreshList();
       setCreateOpen(false);
       showToast(`使用者 ${form.username} 已建立`);
@@ -219,8 +220,9 @@ export default function UsersClient({ initialUsers }: { initialUsers: KeycloakUs
     setSaving(true); setFormError("");
     try {
       const res = await fetch(`/api/bff/users/${editTarget.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: form.email || undefined, firstName: form.firstName || undefined, lastName: form.lastName || undefined, enabled: form.enabled, password: form.password || undefined }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "更新失敗");
+      const text = await res.text();
+      const data: Record<string, unknown> = text ? JSON.parse(text) : {};
+      if (!res.ok) throw new Error((data.error as string) ?? `更新失敗 (${res.status})`);
       setUsers((prev) => prev.map((u) => u.id === editTarget.id ? { ...u, email: form.email || undefined, firstName: form.firstName || undefined, lastName: form.lastName || undefined, enabled: form.enabled } : u));
       setEditTarget(null);
       showToast(`使用者 ${editTarget.username} 已更新`);
@@ -234,7 +236,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: KeycloakUs
     setSaving(true);
     try {
       const res = await fetch(`/api/bff/users/${deleteTarget.id}`, { method: "DELETE" });
-      if (!res.ok) { const data = await res.json(); throw new Error(data.error ?? "刪除失敗"); }
+      if (!res.ok) { const text = await res.text(); const data: Record<string, unknown> = text ? JSON.parse(text) : {}; throw new Error((data.error as string) ?? `刪除失敗 (${res.status})`); }
       setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
       showToast(`使用者 ${deleteTarget.username} 已刪除`);
       setDeleteTarget(null);

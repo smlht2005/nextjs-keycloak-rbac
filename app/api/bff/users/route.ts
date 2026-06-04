@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+
 import { requireRoles } from "@/lib/auth-guard";
 import { listUsers, createUser } from "@/lib/keycloak-admin";
 
