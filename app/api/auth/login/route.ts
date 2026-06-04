@@ -16,6 +16,9 @@ export async function GET(req: Request) {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);
   const state = generateState();
+  const url = new URL(req.url);
+  const forceLogin = url.searchParams.get("switch") === "true";
+
   const params = new URLSearchParams({
     response_type: "code",
     client_id: keycloakConfig.clientId,
@@ -24,7 +27,7 @@ export async function GET(req: Request) {
     state,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
-    prompt: "login",
+    ...(forceLogin && { prompt: "login" }),
   });
   const redirectUrl = `${keycloakUrls.authEndpoint}?${params}`;
   // Write the session cookie directly onto the redirect Response so that
