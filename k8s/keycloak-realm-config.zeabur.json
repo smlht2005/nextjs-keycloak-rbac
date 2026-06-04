@@ -13,12 +13,12 @@
         "pkce.code.challenge.method": "S256"
       },
       "redirectUris": [
-        "https://REPLACE_NEXTJS_DOMAIN/api/auth/callback"
+        "https://nextjs-his-rbac.zeabur.app/api/auth/callback"
       ],
       "webOrigins": [
-        "https://REPLACE_NEXTJS_DOMAIN"
+        "https://nextjs-his-rbac.zeabur.app"
       ],
-      "secret": "REPLACE_CLIENT_SECRET",
+      "secret": "2c2db09b4783264380b15321738be5963616566b26d69eac1160ddd63bf0e9cc",
       "protocolMappers": [
         {
           "name": "audience-mapper",
