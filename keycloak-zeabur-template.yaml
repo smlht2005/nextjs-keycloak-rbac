@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=https://schema.zeabur.app/template.json
+apiVersion: zeabur.com/v1
+kind: Template
+metadata:
+    name: Keycloak for HISCore
+spec:
+    description: Keycloak Identity Provider for HISCore nextjs-rbac
+    services:
+        - name: keycloak
+          template: PREBUILT_V2
+          spec:
+            source:
+                image: quay.io/keycloak/keycloak:25.0
+                command:
+                    - start-dev
+            ports:
+                - id: web
+                  port: 8080
+                  type: HTTP
+            env:
+                KEYCLOAK_ADMIN:
+                    default: admin
+                KEYCLOAK_ADMIN_PASSWORD:
+                    default: 2lIOHgVhy7vh3_EAwDC9Ew
+                KC_PROXY:
+                    default: edge
+                KC_HTTP_ENABLED:
+                    default: "true"
+                KC_HOSTNAME_STRICT:
+                    default: "false"
+                KC_HOSTNAME_STRICT_HTTPS:
+                    default: "false"

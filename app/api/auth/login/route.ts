@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
+
+export const dynamic = "force-dynamic";
 import { sessionOptions, type SessionData } from "@/lib/session";
 import {
   generateCodeVerifier,

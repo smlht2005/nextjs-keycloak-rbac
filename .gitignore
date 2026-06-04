@@ -11,6 +11,11 @@ out/
 .env
 .env.local
 .env.*.local
+.env.zeabur
+.env.keycloak
+
+# backup files
+*.bak
 
 # misc
 .DS_Store

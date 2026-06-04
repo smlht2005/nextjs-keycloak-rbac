@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRoles } from '@/lib/auth-guard'
 
+export const dynamic = 'force-dynamic';
+
 const UPSTREAM = process.env.PATIENT_SERVICE_URL!
 const ALLOWED_QUERY_PARAMS = ['page', 'limit', 'search', 'sort']
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
