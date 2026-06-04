@@ -1,38 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { getIronSession } from "iron-session";
-import { sessionOptions, type SessionData } from "@/lib/session";
-import { keycloakConfig, keycloakUrls } from "@/lib/keycloak-config";
+import { getSession } from "@/lib/session";
+import { deleteSession } from "@/lib/keycloak-admin";
 
 export const dynamic = "force-dynamic";
 
+function extractSessionId(jwt: string): string | null {
+  try {
+    const payload = jwt.split(".")[1];
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString());
+    // Keycloak stores the SSO session ID in the `sid` claim
+    return (decoded.sid as string) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
-  // 1. Destroy app session and revoke refresh token (backchannel)
-  const cookieStore = await cookies();
-  const session = await getIronSession<SessionData>(cookieStore, sessionOptions);
-  const refreshToken = session.refreshToken;
+  const session = await getSession();
+  const accessToken = session.accessToken;
   await session.destroy();
 
-  if (refreshToken) {
-    fetch(keycloakUrls.logoutEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: keycloakConfig.clientId,
-        client_secret: keycloakConfig.clientSecret,
-        refresh_token: refreshToken,
-      }),
-      signal: AbortSignal.timeout(3000),
-    }).catch(() => {});
+  // Delete Keycloak SSO session server-side via Admin API.
+  // This avoids the front-channel logout confirmation page entirely.
+  if (accessToken) {
+    const sid = extractSessionId(accessToken);
+    if (sid) {
+      deleteSession(sid).catch(() => {});
+    }
   }
 
-  // 2. Front-channel logout: redirect browser to Keycloak to clear SSO session
-  // After Keycloak clears the session, it redirects back to /api/auth/login
-  const appBase = process.env.NEXTJS_URL ?? `${req.nextUrl.protocol}//${req.nextUrl.hostname}`;
-  const params = new URLSearchParams({
-    client_id: keycloakConfig.clientId,
-    post_logout_redirect_uri: `${appBase}/api/auth/login`,
-  });
-
-  return NextResponse.redirect(`${keycloakUrls.logoutEndpoint}?${params}`);
+  const appBase =
+    process.env.NEXTJS_URL ??
+    `${req.nextUrl.protocol}//${req.nextUrl.hostname}`;
+  return NextResponse.redirect(`${appBase}/api/auth/login`);
 }

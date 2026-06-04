@@ -114,6 +114,18 @@ export async function deleteUser(id: string): Promise<void> {
   if (!res.ok) throw new Error(`Delete user failed: ${res.status}`);
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  const token = await getAdminToken();
+  const res = await fetch(`${adminBase()}/sessions/${sessionId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Delete session failed: ${res.status}`);
+  }
+}
+
 export async function resetUserPassword(
   id: string,
   password: string,
