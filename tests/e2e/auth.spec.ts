@@ -30,13 +30,14 @@ test("sign out clears session and redirects to /login", async ({ page }) => {
   await expect(page.getByRole("link", { name: /Sign in with Keycloak/i })).toBeVisible();
 });
 
-test("switch account button adds prompt=login to auth URL", async ({
+test("switch account button triggers Keycloak logout to clear SSO", async ({
   page,
 }) => {
   await page.goto("/login");
   const [request] = await Promise.all([
-    page.waitForRequest(/localhost:8080.*prompt=login/),
+    page.waitForRequest(/localhost:8080.*openid-connect\/logout/, { timeout: 10000 }),
     page.getByRole("link", { name: /切換帳號登入/i }).click(),
   ]);
-  expect(request.url()).toContain("prompt=login");
+  expect(request.url()).toContain("openid-connect/logout");
+  expect(request.url()).toContain("post_logout_redirect_uri");
 });
