@@ -411,7 +411,9 @@ done
   "email": "admin-user@hospital.local",
   "emailVerified": true,
   "enabled": true,
-  "credentials": [{ "type": "password", "value": "Admin1234!", "temporary": false }],
+  "credentials": [
+    { "type": "password", "value": "Admin1234!", "temporary": false }
+  ],
   "realmRoles": ["admin"]
 }
 ```
@@ -442,12 +444,12 @@ at .../react-refresh-utils/dist/runtime.js
 
 ```js
 // next.config.js
-const isDev = process.env.NODE_ENV !== 'production'
+const isDev = process.env.NODE_ENV !== "production";
 
 // script-src:
 isDev
-  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"   // dev: HMR 需要 eval
-  : "script-src 'self' 'unsafe-inline'"                  // prod: 不允許 eval
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" // dev: HMR 需要 eval
+  : "script-src 'self' 'unsafe-inline'"; // prod: 不允許 eval
 ```
 
 ---
@@ -472,11 +474,11 @@ Callback route log：
 
 ```ts
 // ❌ 錯誤寫法
-const session = await getSession()          // 使用 next/headers 的 cookies() store
-session.codeVerifier = codeVerifier
-session.state = state
-await session.save()                        // 寫入內部 cookie store
-return NextResponse.redirect(redirectUrl)   // 全新的 Response 物件，沒有 Set-Cookie ❌
+const session = await getSession(); // 使用 next/headers 的 cookies() store
+session.codeVerifier = codeVerifier;
+session.state = state;
+await session.save(); // 寫入內部 cookie store
+return NextResponse.redirect(redirectUrl); // 全新的 Response 物件，沒有 Set-Cookie ❌
 ```
 
 `getSession()` 內部呼叫 `cookies()` from `next/headers`，這是 Next.js 管理的「內部 cookie store」。  
@@ -489,24 +491,27 @@ return NextResponse.redirect(redirectUrl)   // 全新的 Response 物件，沒�
 
 ```ts
 // ✅ 正確寫法（app/api/auth/login/route.ts）
-import { getIronSession } from 'iron-session'
-import { sessionOptions, type SessionData } from '@/lib/session'
+import { getIronSession } from "iron-session";
+import { sessionOptions, type SessionData } from "@/lib/session";
 
 export async function GET(req: Request) {
-  const codeVerifier = generateCodeVerifier()
-  const codeChallenge = generateCodeChallenge(codeVerifier)
-  const state = generateState()
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(codeVerifier);
+  const state = generateState();
 
-  const redirectUrl = `${keycloakUrls.authEndpoint}?${params}`
-  const response = NextResponse.redirect(redirectUrl)
+  const redirectUrl = `${keycloakUrls.authEndpoint}?${params}`;
+  const response = NextResponse.redirect(redirectUrl);
 
   // 直接把 session 寫入 redirect response 的 cookies，確保 Set-Cookie header 存在
-  const session = await getIronSession<SessionData>(response.cookies, sessionOptions)
-  session.codeVerifier = codeVerifier
-  session.state = state
-  await session.save()
+  const session = await getIronSession<SessionData>(
+    response.cookies,
+    sessionOptions,
+  );
+  session.codeVerifier = codeVerifier;
+  session.state = state;
+  await session.save();
 
-  return response   // response 已帶 Set-Cookie ✅
+  return response; // response 已帶 Set-Cookie ✅
 }
 ```
 
@@ -531,11 +536,11 @@ Token exchange 成功，但 `session.save()` 失敗，session 無法儲存，使
 
 `iron-session` 將所有 session 資料加密後存成單一 cookie。session 中同時存放三個 JWT：
 
-| 欄位 | 大小（約）|
-|------|---------|
-| `accessToken` | ~1.8 KB |
-| `refreshToken` | ~1.2 KB |
-| `idToken` | ~1.3 KB |
+| 欄位               | 大小（約）  |
+| ------------------ | ----------- |
+| `accessToken`      | ~1.8 KB     |
+| `refreshToken`     | ~1.2 KB     |
+| `idToken`          | ~1.3 KB     |
 | **合計（加密後）** | **~4.3 KB** |
 
 瀏覽器對單一 cookie 的大小上限為 **4096 bytes**，超過後拒絕儲存。
@@ -546,10 +551,10 @@ Token exchange 成功，但 `session.save()` 失敗，session 無法儲存，使
 
 ```ts
 // app/api/auth/callback/route.ts
-session.accessToken = tokens.access_token
-session.refreshToken = tokens.refresh_token
+session.accessToken = tokens.access_token;
+session.refreshToken = tokens.refresh_token;
 // ❌ 移除：session.idToken = tokens.id_token  (會讓 cookie 超過 4KB)
-session.expiresAt = now + tokens.expires_in
+session.expiresAt = now + tokens.expires_in;
 ```
 
 ```ts
@@ -558,7 +563,7 @@ const params = new URLSearchParams({
   client_id: keycloakConfig.clientId,
   post_logout_redirect_uri: `${process.env.NEXTJS_URL}/login`,
   // ❌ 移除：id_token_hint（Keycloak 沒有此參數仍可正常登出）
-})
+});
 ```
 
 ---
@@ -580,9 +585,9 @@ const params = new URLSearchParams({
 ```ts
 // ❌ 錯誤：模組載入時建立，5 秒後 signal 已 aborted，永遠無法再用
 const FETCH_OPTS = {
-  method: 'POST',
-  signal: AbortSignal.timeout(5000),   // ← 模組 import 時計時開始，5s 後觸發
-}
+  method: "POST",
+  signal: AbortSignal.timeout(5000), // ← 模組 import 時計時開始，5s 後觸發
+};
 ```
 
 `AbortSignal.timeout(5000)` 在模組被 import 的那一刻開始計時。5 秒後 signal 進入 aborted 狀態，**並永久保持 aborted**。之後的所有 `fetch(url, { ...FETCH_OPTS })` 呼叫都會立刻因為 signal 已 aborted 而丟出 `AbortError`。
@@ -594,13 +599,13 @@ const FETCH_OPTS = {
 ```ts
 // ✅ 正確：每次呼叫時建立，確保每個 fetch 都有全新的 5 秒計時
 const fetchOpts = () => ({
-  method: 'POST',
-  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  method: "POST",
+  headers: { "Content-Type": "application/x-www-form-urlencoded" },
   signal: AbortSignal.timeout(5000),
-})
+});
 
 // 使用時：
-const res = await fetch(url, { ...fetchOpts(), body: params.toString() })
+const res = await fetch(url, { ...fetchOpts(), body: params.toString() });
 ```
 
 > **通用規則**：任何帶有生命週期的物件（`AbortSignal`、`AbortController`、`ReadableStream` 等）都**不能**定義為模組層級常數，必須在每次使用時重新建立。
@@ -623,6 +628,7 @@ Roles: admin
 `auth-guard.ts` 從 JWT payload 取 `payload.preferred_username`，但 `hospital` realm 的 `nextjs-bff` client **沒有對應的 protocol mapper**，所以 access token 裡根本沒有 `preferred_username` claim。
 
 診斷：查看 client 的 mappers：
+
 ```sh
 curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
   "http://keycloak:8080/admin/realms/hospital/clients/$CLIENT_UUID/protocol-mappers/models" \
@@ -631,6 +637,7 @@ curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```
 
 查看 assigned default scopes：
+
 ```sh
 curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
   "http://keycloak:8080/admin/realms/hospital/clients/$CLIENT_UUID/default-client-scopes" \
@@ -711,6 +718,62 @@ curl -X POST \
 
 ---
 
+## 問題四：Next.js 啟動後反覆出現 502（postStartCommand shell 退出導致行程被 kill）
+
+### 症狀
+
+```
+HTTP ERROR 502
+obscure-orbit-...-3000.app.github.dev 目前無法處理這項要求
+```
+
+重啟 Next.js 後短暫恢復，但 VS Code 重新連線或 Codespaces session 中斷後再度發生。
+
+### 根本原因
+
+`devcontainer.json` 的 `postStartCommand` 原本以 `&& npm run dev` **前景執行** Next.js：
+
+```jsonc
+// ❌ 錯誤（前景執行，綁定在 postStartCommand 的 shell）
+"postStartCommand": "... && cd /workspace && npm run dev"
+```
+
+當這個 shell 因 VS Code 重連、session 中斷等原因退出時，會對子行程送出 **SIGHUP**，導致：
+
+```
+npm run dev → next-server 收到 SIGHUP → 行程變殭屍 (zombie)
+→ port 3000 無人監聽 → nginx proxy_pass 失敗 → 502
+```
+
+可用以下指令確認（State 為 `Z` 即殭屍）：
+
+```bash
+cat /proc/<PID>/status | grep State
+# State: Z (zombie)
+```
+
+### 修法
+
+改用 **pm2** 以獨立 daemon 方式啟動 Next.js，使其生命週期與 shell 脫鉤：
+
+```jsonc
+// ✅ 正確（pm2 daemon，不受 shell 退出影響）
+"postStartCommand": "apk add --no-cache nginx 2>/dev/null; npm install -g pm2 --silent 2>/dev/null; ... && cd /workspace && pm2 delete nextjs 2>/dev/null; pm2 start npm --name nextjs -- run dev && pm2 logs nextjs --lines 0"
+```
+
+pm2 以獨立 daemon（`/root/.pm2`）運行，shell 退出後仍持續監聽 port 3000，崩潰時也會自動重啟。
+
+### 常用指令
+
+```bash
+pm2 status              # 查看狀態
+pm2 logs nextjs         # 查看即時 log
+pm2 restart nextjs      # 手動重啟
+pm2 logs nextjs --nostream --lines 50  # 查看最近 50 行 log
+```
+
+---
+
 ## 每次建立新 Codespace 的注意事項
 
 1. `KEYCLOAK_URL` 和 `NEXTJS_URL` 中的 codespace name（`obscure-orbit-...`）**每次都不同**，`setup.sh` 會自動偵測 `$CODESPACE_NAME` 並寫入 `.env.local`
@@ -718,3 +781,95 @@ curl -X POST \
 3. Keycloak client 的 `redirectUris` 已由 `setup.sh` 的 `postCreateCommand` 自動更新
 4. **必須用真實瀏覽器**（非 VS Code Simple Browser）分別完成 port 3000 和 port 8080 的 Dev Tunnels click-through
 
+---
+
+## 問題五：Keycloak Admin API 403 — Service Account 缺少 Client Roles Mapper
+
+### 症狀
+
+使用者管理頁面顯示：
+```
+載入失敗：List users failed: 403
+```
+
+即使已在 Keycloak Admin Console → Clients → `nextjs-bff` → Service accounts roles 中指派 `realm-management → manage-users` 和 `view-users`，仍然 403。
+
+### 根本原因
+
+問題分兩層：
+
+**第一層（角色未出現在 JWT）**
+
+`nextjs-bff` client 的 `roles` scope 只有 `realm-roles-mapper`（對應 `realm_access.roles`），缺少 **client roles protocol mapper**。因此即使 service account DB 中有 `realm-management` 角色，這些角色也不會出現在 JWT 的 `resource_access` 欄位。
+
+**第二層（Admin API 讀取 JWT）**
+
+Keycloak Admin REST API 在驗證 service account 時，讀取的是 JWT token 中的 `resource_access["realm-management"].roles`，而非直接查 DB。`resource_access` 缺失 → 403。
+
+用 Node.js 解碼 token 驗證：
+```js
+const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+// 有問題時：
+console.log(payload.resource_access); // undefined
+// 修復後：
+console.log(payload.resource_access["realm-management"].roles);
+// ["manage-realm", "manage-users", "view-users", "query-users", ...]
+```
+
+### 修法
+
+需要同時完成兩步：
+
+**步驟 1：指派 realm-management 角色給 service account**
+
+前往 Keycloak Admin Console：
+- **Clients → nextjs-bff → Service accounts roles → Assign role**
+- Filter by clients → 選 `realm-management`
+- 勾選 `manage-users`、`view-users`、`query-users`、`manage-realm` → Assign
+
+**步驟 2：在 nextjs-bff client 新增 Client Roles Protocol Mapper**
+
+前往 **Clients → nextjs-bff → Client scopes → nextjs-bff-dedicated → Configure a new mapper → User Client Role**：
+
+| 欄位 | 值 |
+|------|-----|
+| Name | `client-roles-mapper` |
+| Token Claim Name | `resource_access.${client_id}.roles` |
+| Add to access token | ON |
+| Multivalued | ON |
+| Client ID | （空白，代表所有 clients） |
+
+或使用 Admin API 自動完成（替換 `KEYCLOAK_URL` 與 `REALM`）：
+
+```bash
+# 1. 取得 admin token
+AT=$(curl -s -X POST http://keycloak:8080/realms/master/protocol/openid-connect/token \
+  -d "grant_type=password&client_id=admin-cli&username=admin&password=devpassword123" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+# 2. 取得 nextjs-bff client UUID
+CLIENT_UUID=$(curl -s -H "Authorization: Bearer $AT" \
+  "http://keycloak:8080/admin/realms/hospital/clients?clientId=nextjs-bff" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])")
+
+# 3. 新增 client roles mapper
+curl -s -X POST "http://keycloak:8080/admin/realms/hospital/clients/$CLIENT_UUID/protocol-mappers/models" \
+  -H "Authorization: Bearer $AT" -H "Content-Type: application/json" \
+  -d '{
+    "name":"client-roles-mapper",
+    "protocol":"openid-connect",
+    "protocolMapper":"oidc-usermodel-client-role-mapper",
+    "config":{
+      "multivalued":"true",
+      "access.token.claim":"true",
+      "id.token.claim":"true",
+      "claim.name":"resource_access.${client_id}.roles",
+      "jsonType.label":"String",
+      "usermodel.clientRoleMapping.clientId":""
+    }
+  }'
+```
+
+### 注意
+
+此設定在每次新建 Codespace 時需重新設定（或透過 `k8s/keycloak-realm-config.dev.json` 的 `protocolMappers` 欄位自動匯入）。

@@ -18,7 +18,7 @@ export async function requireAuth(): Promise<AuthContext> {
   if (!session.accessToken) redirect('/api/auth/login')
   const now = Math.floor(Date.now() / 1000)
   if (session.expiresAt && session.expiresAt < now + 60) {
-    if (!session.refreshToken) { await session.destroy(); redirect('/api/auth/login') }
+    if (!session.refreshToken) { redirect('/api/auth/logout') }
     try {
       const tokens = await refreshTokens(session.refreshToken)
       // Verify the new token before trusting it
@@ -27,14 +27,14 @@ export async function requireAuth(): Promise<AuthContext> {
       session.expiresAt = now + tokens.expires_in; await session.save()
     } catch (err) {
       console.error('[auth-guard] token refresh failed:', err instanceof Error ? err.message : err)
-      await session.destroy(); redirect('/api/auth/login')
+      redirect('/api/auth/logout')
     }
   }
   let payload: KeycloakJWTPayload
   try { payload = await verifyAccessToken(session.accessToken) }
   catch (err) {
     console.error('[auth-guard] token verify failed:', err instanceof Error ? err.message : err)
-    await session.destroy(); redirect('/api/auth/login')
+    redirect('/api/auth/logout')
   }
   const roles = (payload!.realm_access?.roles ?? []) as AppRole[]
   return {

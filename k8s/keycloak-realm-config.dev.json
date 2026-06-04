@@ -8,6 +8,7 @@
       "enabled": true,
       "publicClient": false,
       "standardFlowEnabled": true,
+      "serviceAccountsEnabled": true,
       "directAccessGrantsEnabled": false,
       "attributes": {
         "pkce.code.challenge.method": "S256"
@@ -43,6 +44,21 @@
             "access.token.claim": "true",
             "claim.name": "preferred_username",
             "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "client-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "resource_access.${client_id}.roles",
+            "jsonType.label": "String",
+            "usermodel.clientRoleMapping.clientId": ""
           }
         }
       ]
@@ -189,6 +205,14 @@
       ]
     }
   ],
+  "clientScopeMappings": {
+    "nextjs-bff": [
+      {
+        "client": "realm-management",
+        "roles": ["manage-users", "view-users"]
+      }
+    ]
+  },
   "defaultDefaultClientScopes": [
     "profile",
     "email",

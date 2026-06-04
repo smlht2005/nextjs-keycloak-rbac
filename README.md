@@ -1,6 +1,6 @@
 # Next.js + Keycloak 角色存取控制（RBAC）
 
-> **技術棧：** Next.js 14 App Router · iron-session · jose · Keycloak 24 · Docker / Kubernetes（地端部署）
+> **技術棧：** Next.js 14 App Router · iron-session · jose · Keycloak 24 · Docker / Kubernetes（地端）· Zeabur（雲端）
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/smlht2005/nextjs-keycloak-rbac)
 
@@ -18,6 +18,7 @@
 - [Middleware 說明](#middleware-說明)
 - [Keycloak 設定](#keycloak-設定)
 - [Kubernetes 部署](#kubernetes-部署)
+- [Zeabur 雲端部署](#zeabur-雲端部署)
 - [快速開始](#快速開始)
 - [安全設計決策](#安全設計決策)
 - [環境變數說明](#環境變數說明)
@@ -132,6 +133,8 @@ k8s/
 │  │  /unauthorized      │    │  /api/auth/callback ◄────────┼──  │
 │  │  /dashboard  ───────┼──► │  /api/auth/logout            │    │
 │  │  /admin      ───────┼──► │  /api/bff/patients           │    │
+│  │  /admin/users───────┼──► │  /api/bff/users              │    │
+│  │                     │    │  /api/bff/users/[id]         │    │
 │  │                     │    │  /api/bff/admin              │    │
 │  └─────────────────────┘    └──────────────────────────────┘    │
 └────────────────────────────┬────────────────────────────────────┘
@@ -349,7 +352,7 @@ requireAuth()
 
 ---
 
-### `app/(protected)/admin/page.tsx` — 管理員頁面
+### `app/(protected)/admin/page.tsx` — 管理員首頁
 
 ```
 路徑：/admin
@@ -358,12 +361,14 @@ requireAuth()
 
 **職責：**
 - 僅允許擁有 `admin` 角色的用戶存取
+- 登入後自動重導向至 `/admin/users`（使用者管理頁面）
 - 作為管理功能的入口頁面
 
 **角色驗證：**
 ```typescript
 await requireRoles(['admin'])
 // 若用戶角色不包含 'admin' → redirect('/unauthorized')
+// admin 登入後 → redirect('/admin/users')
 ```
 
 **與儀表板的差異：**
@@ -372,6 +377,39 @@ await requireRoles(['admin'])
 |---|---|---|
 | `/dashboard` | `requireAuth()` | 所有已登入用戶 |
 | `/admin` | `requireRoles(['admin'])` | 僅 admin |
+
+---
+
+### `app/(protected)/admin/users/page.tsx` — 使用者管理頁面
+
+```
+路徑：/admin/users
+存取控制：限 admin 角色
+```
+
+**職責：**
+- 列出 Keycloak Realm 中的所有使用者
+- 提供新增、編輯、刪除使用者的完整 CRUD 介面
+- 支援角色指派（透過 Keycloak Admin API）
+
+**元件架構：**
+
+```
+admin/users/page.tsx         ← Server Component，驗證 admin 角色
+└── UsersClient.tsx          ← Client Component，CRUD 操作 UI
+    ├── 使用者列表（DataTable）
+    ├── 新增使用者 Modal
+    ├── 編輯使用者 Modal（含角色指派）
+    └── 刪除確認 Dialog
+```
+
+**資料流：**
+```
+UsersClient → GET /api/bff/users          → Keycloak Admin API（列出使用者）
+           → POST /api/bff/users          → Keycloak Admin API（建立使用者）
+           → PUT /api/bff/users/[id]      → Keycloak Admin API（更新使用者）
+           → DELETE /api/bff/users/[id]   → Keycloak Admin API（刪除使用者）
+```
 
 ---
 
@@ -524,6 +562,39 @@ if (!id || !UUID_RE.test(id)) {
 
 ---
 
+### `app/api/bff/users/route.ts` — 使用者管理 API
+
+```
+端點：GET /api/bff/users、POST /api/bff/users
+存取控制：限 admin 角色
+```
+
+**職責：** 代理前端 CRUD 請求至 Keycloak Admin API，處理使用者列表查詢與建立
+
+| 方法 | 動作 | 說明 |
+|---|---|---|
+| `GET` | 列出所有使用者 | 呼叫 Keycloak Admin API `GET /users` |
+| `POST` | 建立新使用者 | 呼叫 Keycloak Admin API `POST /users` |
+
+---
+
+### `app/api/bff/users/[id]/route.ts` — 使用者操作 API
+
+```
+端點：GET/PUT/DELETE /api/bff/users/[id]
+存取控制：限 admin 角色
+```
+
+**職責：** 針對單一使用者的查詢、更新、刪除與角色指派
+
+| 方法 | 動作 | 說明 |
+|---|---|---|
+| `GET` | 取得使用者詳情 | 含角色資訊 |
+| `PUT` | 更新使用者資料 | 帳號、Email、姓名 |
+| `DELETE` | 刪除使用者 | 從 Keycloak Realm 移除 |
+
+---
+
 ### `app/api/bff/admin/route.ts` — 管理服務代理
 
 ```
@@ -545,6 +616,36 @@ const res = await fetch(new URL('/admin', UPSTREAM), {
 ---
 
 ## 核心函式庫說明
+
+### `lib/keycloak-admin.ts` — Keycloak Admin API 整合
+
+**職責：** 封裝 Keycloak Admin REST API 呼叫，使用 Service Account 取得管理令牌
+
+**核心設計：**
+```typescript
+// 使用 client_credentials 取得管理令牌（非用戶 Token）
+async function getAdminToken(): Promise<string>
+
+// 使用者 CRUD
+listUsers()           → GET  /admin/realms/{realm}/users
+createUser(data)      → POST /admin/realms/{realm}/users
+getUserById(id)       → GET  /admin/realms/{realm}/users/{id}
+updateUser(id, data)  → PUT  /admin/realms/{realm}/users/{id}
+deleteUser(id)        → DELETE /admin/realms/{realm}/users/{id}
+
+// 角色管理
+getUserRoles(id)      → GET  /admin/realms/{realm}/users/{id}/role-mappings/realm
+assignRoles(id, roles)   → POST /admin/realms/{realm}/users/{id}/role-mappings/realm
+removeRoles(id, roles)   → DELETE /admin/realms/{realm}/users/{id}/role-mappings/realm
+```
+
+**所需環境變數：**
+
+| 變數 | 說明 |
+|---|---|
+| `KEYCLOAK_ADMIN_CLIENT_SECRET` | Service Account 密鑰（需在 Keycloak 啟用 service-accounts-enabled） |
+
+---
 
 ### `lib/keycloak-config.ts` — Keycloak 設定
 
@@ -848,6 +949,69 @@ kubectl set image deployment/nextjs-rbac nextjs=hospital/nextjs-rbac:v1.1.0 -n h
 
 ---
 
+## Zeabur 雲端部署
+
+### 架構概覽
+
+```
+GitHub Push → GitHub Actions (deploy-zeabur.yml)
+    └─► Zeabur Platform
+         ├── nextjs-rbac（Next.js App，由 zbpack.json 設定建置）
+         └── keycloak-his-rbac（Keycloak，由 keycloak-zeabur-template.yaml 設定）
+```
+
+### 部署設定檔
+
+| 檔案 | 用途 |
+|---|---|
+| `zbpack.json` | 告知 Zeabur 使用 Node.js 建置，輸出 standalone |
+| `.github/workflows/deploy-zeabur.yml` | Push 至 `main` 時自動部署至 Zeabur |
+| `keycloak-zeabur-template.yaml` | Zeabur Keycloak Service 範本（環境變數設定）|
+| `k8s/keycloak-realm-config.zeabur.json` | Zeabur 環境專用的 Realm 設定（含正確的 redirect URI）|
+| `doc/sop-keycloak-zeabur-deploy.md` | Zeabur Keycloak 部署 SOP |
+
+### GitHub Actions 自動部署
+
+```yaml
+# .github/workflows/deploy-zeabur.yml
+# 觸發條件：push 至 main 分支
+on:
+  push:
+    branches: [main]
+```
+
+**所需 GitHub Secrets：**
+
+| Secret | 說明 |
+|---|---|
+| `ZEABUR_API_KEY` | Zeabur API Token（從 Zeabur Dashboard 取得） |
+| `ZEABUR_SERVICE_ID` | Next.js 服務的 ID |
+
+### Zeabur 環境變數設定
+
+在 Zeabur Dashboard → Service → Variables 設定以下變數：
+
+```env
+KEYCLOAK_URL=https://keycloak-his-rbac.zeabur.app
+KEYCLOAK_REALM=hospital
+KEYCLOAK_CLIENT_ID=nextjs-bff
+KEYCLOAK_CLIENT_SECRET=<從 Keycloak Admin 取得>
+NEXTJS_URL=https://nextjs-his-rbac.zeabur.app
+SESSION_SECRET=<openssl rand -hex 32>
+```
+
+### 與 Kubernetes 部署的差異
+
+| 項目 | Kubernetes（地端） | Zeabur（雲端） |
+|---|---|---|
+| Realm 設定 | `keycloak-realm-config.json` | `keycloak-realm-config.zeabur.json` |
+| 內部網路 URL | `KEYCLOAK_INTERNAL_URL` 設定 | 不需要（同平台內部路由）|
+| TLS | Ingress + cert-manager | Zeabur 自動提供 |
+| 部署方式 | `kubectl apply` | GitHub Actions 自動部署 |
+| 擴容 | HPA（CPU/Memory 觸發） | Zeabur 平台自動管理 |
+
+---
+
 ## 快速開始
 
 ### 1. 設定環境變數
@@ -933,3 +1097,4 @@ npm run audit  # 等同於 npm audit --audit-level=high
 | `KEYCLOAK_ADMIN_PASSWORD` | ✅ | Keycloak 管理員密碼（Docker Compose 使用） |
 | `POSTGRES_USER` | ❌ | PostgreSQL 用戶名（預設：`keycloak`） |
 | `KEYCLOAK_ADMIN_USER` | ❌ | Keycloak 管理員帳號（預設：`admin`） |
+| `KEYCLOAK_ADMIN_CLIENT_SECRET` | ❌ | Keycloak Service Account 密鑰（使用者管理 CRUD 功能必填）|
