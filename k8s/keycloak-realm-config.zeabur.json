@@ -11,7 +11,8 @@
       "serviceAccountsEnabled": true,
       "directAccessGrantsEnabled": false,
       "attributes": {
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://nextjs-his-rbac.zeabur.app/login"
       },
       "redirectUris": [
         "https://nextjs-his-rbac.zeabur.app/api/auth/callback"
