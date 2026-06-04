@@ -9,14 +9,23 @@ const adminBase = () =>
   `${keycloakConfig.internalUrl}/admin/realms/${keycloakConfig.realm}`;
 
 async function getAdminToken(): Promise<string> {
-  const tokenUrl = `${keycloakConfig.internalUrl}/realms/${keycloakConfig.realm}/protocol/openid-connect/token`;
+  const adminUser = process.env.KEYCLOAK_ADMIN_USER;
+  const adminPass = process.env.KEYCLOAK_ADMIN_PASSWORD;
+  if (!adminUser || !adminPass) {
+    throw new Error("Missing KEYCLOAK_ADMIN_USER or KEYCLOAK_ADMIN_PASSWORD");
+  }
+
+  // Use master realm admin credentials — service account tokens in Keycloak 24
+  // do not reliably populate resource_access.realm-management in the JWT.
+  const tokenUrl = `${keycloakConfig.internalUrl}/realms/master/protocol/openid-connect/token`;
   const res = await fetch(tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      grant_type: "client_credentials",
-      client_id: keycloakConfig.clientId,
-      client_secret: keycloakConfig.clientSecret,
+      grant_type: "password",
+      client_id: "admin-cli",
+      username: adminUser,
+      password: adminPass,
     }),
     signal: AbortSignal.timeout(5000),
   });
