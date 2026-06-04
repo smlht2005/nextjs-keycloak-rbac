@@ -24,6 +24,7 @@ export async function GET(req: Request) {
     state,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
+    prompt: "login",
   });
   const redirectUrl = `${keycloakUrls.authEndpoint}?${params}`;
   // Write the session cookie directly onto the redirect Response so that
