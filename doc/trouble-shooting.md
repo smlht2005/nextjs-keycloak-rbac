@@ -873,3 +873,208 @@ curl -s -X POST "http://keycloak:8080/admin/realms/hospital/clients/$CLIENT_UUID
 ### 注意
 
 此設定在每次新建 Codespace 時需重新設定（或透過 `k8s/keycloak-realm-config.dev.json` 的 `protocolMappers` 欄位自動匯入）。
+
+---
+
+# Zeabur 雲端部署除錯紀錄
+
+> 環境：Next.js 14 / Keycloak 24 / Zeabur Platform
+> 日期：2026-06-04
+
+---
+
+## 問題一：`/admin/users` 載入失敗 — `401 unauthorized_client`
+
+### 症狀
+
+```
+Failed to get admin token: 401
+{"error":"unauthorized_client","error_description":"Client not enabled to retrieve service account"}
+```
+
+### 根本原因
+
+`k8s/keycloak-realm-config.zeabur.json` 的 `nextjs-bff` client 缺少 `"serviceAccountsEnabled": true`，
+導致 `client_credentials` grant 被 Keycloak 拒絕。
+
+### 修法
+
+在 `keycloak-realm-config.zeabur.json` 的 `nextjs-bff` client 加入：
+
+```json
+"serviceAccountsEnabled": true
+```
+
+同時補上 `clientScopeMappings`，確保 realm re-import 後 service account 有正確角色：
+
+```json
+"clientScopeMappings": {
+  "nextjs-bff": [
+    {
+      "client": "realm-management",
+      "roles": ["manage-users", "view-users"]
+    }
+  ]
+}
+```
+
+---
+
+## 問題二：`403 Forbidden` — Service Account token 不含 `resource_access`
+
+### 症狀
+
+`client_credentials` grant 成功取得 token，但呼叫 Keycloak Admin REST API (`/admin/realms/hospital/users`) 仍回傳 403。
+
+### 根本原因診斷
+
+解碼 JWT payload 發現 `resource_access` 欄位完全空白：
+
+```json
+{
+  "realm_access": {"roles": ["offline_access", "default-roles-hospital", "uma_authorization"]},
+  "resource_access": {},
+  "scope": "roles"
+}
+```
+
+即使已正確指派 `realm-management → manage-users, view-users` 角色給 service account，Keycloak 24 的 `client_credentials` token **不會自動帶入 client roles 至 `resource_access`**，即使啟用 `fullScopeAllowed` 也無效。
+
+### 嘗試過但無效的方法
+
+| 方法 | 結果 |
+|---|---|
+| `POST /users/{sa-id}/role-mappings/clients/{rm-id}` 指派角色 | 角色有指派，但不進 token |
+| `POST /clients/{id}/scope-mappings/clients/{rm-id}` 加 scope mapping | 仍不出現在 `resource_access` |
+| `fullScopeAllowed: true` | 無效 |
+| 建立專用 `nextjs-admin` client | 同樣問題 |
+
+### 根本解法：改用 Master Realm Admin Token
+
+Keycloak master realm admin token 可直接存取任何 realm 的 Admin REST API，不受 `resource_access` 限制。
+
+修改 `lib/keycloak-admin.ts` 的 `getAdminToken()`：
+
+```typescript
+// ❌ 原本：client_credentials（Keycloak 24 token 缺 resource_access）
+grant_type: "client_credentials",
+client_id: keycloakConfig.clientId,
+client_secret: keycloakConfig.clientSecret,
+
+// ✅ 修改後：master realm password grant
+tokenUrl = `${internalUrl}/realms/master/protocol/openid-connect/token`
+grant_type: "password",
+client_id: "admin-cli",
+username: process.env.KEYCLOAK_ADMIN_USER,
+password: process.env.KEYCLOAK_ADMIN_PASSWORD,
+```
+
+新增必要環境變數：
+
+```env
+KEYCLOAK_ADMIN_USER=admin
+KEYCLOAK_ADMIN_PASSWORD=<keycloak-admin-password>
+```
+
+---
+
+## 問題三：根路徑 `/` 回傳 404
+
+### 症狀
+
+訪問 `https://nextjs-his-rbac.zeabur.app/` 顯示：
+
+```
+404 — This page could not be found.
+```
+
+### 根本原因
+
+`app/page.tsx` 不存在。Middleware 只在**沒有 session** 時重導向至登入；若有 session（或其他邊界情況）通過 middleware，Next.js 找不到根路由頁面。
+
+### 修法
+
+新增 `app/page.tsx`：
+
+```typescript
+import { redirect } from "next/navigation";
+
+export default function RootPage() {
+  redirect("/dashboard");
+}
+```
+
+---
+
+## 問題四：Keycloak 顯示 `Invalid redirect uri`
+
+### 症狀
+
+訪問應用程式後被重導向至 Keycloak，Keycloak 顯示：
+
+```
+We are sorry...
+Invalid redirect uri
+```
+
+### 根本原因
+
+舊部署（Zeabur 重新部署途中）或瀏覽器殘留舊 session/Cookie 導致的暫時性錯誤。
+
+實際確認：
+- Keycloak `nextjs-bff` client 的 `redirectUris` 設定正確（`https://nextjs-his-rbac.zeabur.app/api/auth/callback`）
+- App 發出的 `redirect_uri` 完全相符
+- 新部署完成後直接測試，Keycloak 正確回傳登入頁面
+
+### 修法
+
+1. 清除瀏覽器對該域名的 Cookie
+2. 重新訪問應用程式
+
+---
+
+## Zeabur 部署 GitHub Actions 失敗
+
+### 症狀
+
+每次 push 觸發 GitHub Actions，`Deploy to Zeabur` job 立即失敗：
+
+```
+Unable to resolve action zeabur/deploy-action, repository not found
+```
+
+### 根本原因
+
+`zeabur/deploy-action@v1` 此 GitHub Action **不存在**（repository not found）。
+
+### 修法
+
+移除 `.github/workflows/deploy-zeabur.yml`，改用 **Zeabur Dashboard 原生 Git 整合**：
+
+Zeabur Dashboard → Service → 設定 → 來源 → GitHub 儲存庫 → 選擇 `main` 分支 → 儲存並重新部署
+
+之後每次 `git push origin main` 即自動觸發 Zeabur 部署，不需要 GitHub Actions。
+
+---
+
+## Keycloak Realm Config 套用方式（Zeabur）
+
+修改 `k8s/keycloak-realm-config.zeabur.json` 後，透過 Admin REST API 直接套用而不需重新 import realm：
+
+```powershell
+# 取得 admin token
+$r = Invoke-RestMethod "https://<keycloak-url>/realms/master/protocol/openid-connect/token" `
+  -Method POST -ContentType "application/x-www-form-urlencoded" `
+  -Body "grant_type=password&client_id=admin-cli&username=admin&password=<password>"
+$headers = @{ Authorization = "Bearer $($r.access_token)" }
+
+# 取得 client UUID
+$clients = Invoke-RestMethod ".../admin/realms/hospital/clients?clientId=nextjs-bff" -Headers $headers
+$uuid = $clients[0].id
+
+# 更新 client（PUT 整個 client JSON）
+$client = Invoke-RestMethod ".../admin/realms/hospital/clients/$uuid" -Headers $headers
+$client.serviceAccountsEnabled = $true
+Invoke-RestMethod ".../admin/realms/hospital/clients/$uuid" -Method PUT -Headers $headers `
+  -ContentType "application/json" -Body ($client | ConvertTo-Json -Depth 10)
+```
