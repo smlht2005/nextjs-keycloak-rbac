@@ -14,7 +14,8 @@
         "pkce.code.challenge.method": "S256"
       },
       "redirectUris": [
-        "http://localhost:3000/api/auth/callback"
+        "http://localhost:3000/api/auth/callback",
+        "http://localhost:3001/api/auth/callback"
       ],
       "webOrigins": [
         "+"

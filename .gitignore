@@ -35,3 +35,8 @@ Thumbs.db
 dist/
 coverage/
 *.tsbuildinfo
+
+# playwright
+playwright/.auth/
+playwright-report/
+test-results/

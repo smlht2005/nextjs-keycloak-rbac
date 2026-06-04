@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { getIronSession } from "iron-session";
 
 export const dynamic = "force-dynamic";
@@ -30,19 +31,17 @@ export async function GET(req: Request) {
     ...(forceLogin && { prompt: "login" }),
   });
   const redirectUrl = `${keycloakUrls.authEndpoint}?${params}`;
-  // Write the session cookie directly onto the redirect Response so that
-  // Set-Cookie is guaranteed to be present (cookies() from next/headers is NOT
-  // merged into NextResponse.redirect() headers in Next.js 14).
-  const response = NextResponse.redirect(redirectUrl);
-  const session = await getIronSession<SessionData>(
-    response.cookies,
-    sessionOptions,
-  );
+
+  // In Next.js 16, cookies() from next/headers is automatically merged into
+  // the response (including redirect responses). The previous workaround of
+  // passing response.cookies to getIronSession() no longer sets Set-Cookie.
+  const cookieStore = await cookies();
+  const session = await getIronSession<SessionData>(cookieStore, sessionOptions);
   session.codeVerifier = codeVerifier;
   session.state = state;
   await session.save();
   console.log(
-    `[login] session cookie written to redirect response | state=${state}`,
+    `[login] session cookie written | state=${state}`,
   );
-  return response;
+  return NextResponse.redirect(redirectUrl);
 }
