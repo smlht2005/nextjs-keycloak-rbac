@@ -11,7 +11,8 @@
       "serviceAccountsEnabled": true,
       "directAccessGrantsEnabled": false,
       "attributes": {
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+##http://localhost:3000/api/auth/login##http://localhost:3001/api/auth/login"
       },
       "redirectUris": [
         "http://localhost:3000/api/auth/callback",

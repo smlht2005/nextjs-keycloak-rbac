@@ -35,7 +35,7 @@ export default function LoginPage() {
 
           {/* Secondary: Switch account */}
           <a
-            href="/api/auth/login?switch=true"
+            href="/api/auth/switch"
             className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-600 transition-colors duration-150 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-800"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

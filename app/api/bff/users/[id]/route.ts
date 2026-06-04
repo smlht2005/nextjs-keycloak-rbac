@@ -57,7 +57,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     });
 
     if (typeof password === "string" && password) {
-      await resetUserPassword(id, password, true);
+      await resetUserPassword(id, password, false);
     }
 
     return NextResponse.json({ success: true });
