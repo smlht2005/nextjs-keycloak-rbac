@@ -1057,6 +1057,138 @@ Zeabur Dashboard → Service → 設定 → 來源 → GitHub 儲存庫 → 選�
 
 ---
 
+## 問題六：編輯使用者回傳 `Unexpected end of JSON input`
+
+### 症狀
+
+編輯使用者並點「儲存」後，Modal 顯示錯誤：
+
+```
+Unexpected end of JSON input
+```
+
+### 根本原因
+
+兩個問題同時存在：
+
+1. **缺少 `export const dynamic = "force-dynamic"`**：`app/api/bff/users/route.ts` 和 `app/api/bff/users/[id]/route.ts` 沒有加此指令，其他 BFF route 都有。在 Next.js standalone build 中可能導致非預期的靜態處理行為。
+
+2. **`res.json()` 無防禦性呼叫**：`UsersClient.tsx` 的 `handleUpdate`、`handleCreate`、`handleDelete` 在 `await res.json()` 前未確認 response body 是否為 JSON，當 response 為空（如 session 過期 redirect 後的空 body）時會爆 `Unexpected end of JSON input`。
+
+### 修法
+
+**Route 檔補上 `force-dynamic`：**
+
+```typescript
+// app/api/bff/users/route.ts
+// app/api/bff/users/[id]/route.ts
+export const dynamic = "force-dynamic";
+```
+
+**Client 端改用防禦性 JSON 解析：**
+
+```typescript
+// ❌ 原本
+const data = await res.json();
+if (!res.ok) throw new Error(data.error ?? "更新失敗");
+
+// ✅ 修改後
+const text = await res.text();
+const data: Record<string, unknown> = text ? JSON.parse(text) : {};
+if (!res.ok) throw new Error((data.error as string) ?? `更新失敗 (${res.status})`);
+```
+
+---
+
+## 問題七：Sign-out 後顯示空白頁（Keycloak logout 無 redirect）
+
+### 症狀
+
+點 sign-out 按鈕後，瀏覽器導向 Keycloak 登出 URL，頁面空白，沒有導回 `/login`。
+
+```
+https://keycloak-xxx.zeabur.app/realms/hospital/protocol/openid-connect/logout?
+  client_id=nextjs-bff&post_logout_redirect_uri=https://app.zeabur.app/login
+```
+
+### 根本原因
+
+Keycloak 18+ 的 OIDC RP-Initiated Logout 若沒有 `id_token_hint`，不保證執行 redirect。空白頁是 Keycloak 在沒有 hint 的情況下的預設行為。
+
+目前 `id_token` 沒有存入 session（避免超過 4KB Cookie 限制），所以無法傳 `id_token_hint`。
+
+### 嘗試過但無效的方法
+
+在 `post.logout.redirect.uris` 加入 `/login` URL → Keycloak 仍顯示空白頁（因為沒有 `id_token_hint`）。
+
+### 根本解法：Backchannel Logout
+
+不依賴 Keycloak 的前端 redirect，改為：
+
+1. Server-side 用 `refresh_token` 呼叫 `POST /realms/{realm}/protocol/openid-connect/logout`（Keycloak backchannel）
+2. 直接把瀏覽器導向 `/login`
+
+```typescript
+// app/api/auth/logout/route.ts
+export async function GET(req: NextRequest) {
+  const session = await getSession()
+  const refreshToken = session.refreshToken
+  await session.destroy()                        // 1. 先清除 local session
+
+  if (refreshToken) {
+    fetch(keycloakUrls.tokenEndpoint.replace('/token', '/logout'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: keycloakConfig.clientId,
+        client_secret: keycloakConfig.clientSecret,
+        refresh_token: refreshToken,
+      }),
+      signal: AbortSignal.timeout(3000),
+    }).catch(() => {})                           // 2. fire-and-forget 終止 Keycloak SSO session
+  }
+
+  return NextResponse.redirect(new URL('/login', process.env.NEXTJS_URL ?? req.url))  // 3. 直接跳 /login
+}
+```
+
+**優點：**
+- 不需要 `id_token_hint`
+- 瀏覽器永遠導回 `/login`，不依賴 Keycloak redirect 行為
+- Keycloak SSO session 仍然被正確終止
+
+---
+
+## 問題八：登出後重新登入無法切換帳號
+
+### 症狀
+
+點「Sign in with Keycloak」後，Keycloak 不顯示登入表單，直接以原帳號自動登入。
+
+### 根本原因
+
+Backchannel logout（`POST /logout` with `refresh_token`）在某些情況下未完全終止 Keycloak 瀏覽器端 SSO session cookie。Keycloak 偵測到 browser session 仍存在，跳過登入表單直接 SSO 登入。
+
+### 修法
+
+在 `/api/auth/login` 的授權 URL 加入 `prompt=login`，強制 Keycloak 每次都顯示登入表單：
+
+```typescript
+// app/api/auth/login/route.ts
+const params = new URLSearchParams({
+  response_type: "code",
+  client_id: keycloakConfig.clientId,
+  redirect_uri: keycloakConfig.redirectUri,
+  scope: "openid",
+  state,
+  code_challenge: codeChallenge,
+  code_challenge_method: "S256",
+  prompt: "login",               // ← 強制顯示登入表單
+});
+```
+
+---
+
 ## Keycloak Realm Config 套用方式（Zeabur）
 
 修改 `k8s/keycloak-realm-config.zeabur.json` 後，透過 Admin REST API 直接套用而不需重新 import realm：
