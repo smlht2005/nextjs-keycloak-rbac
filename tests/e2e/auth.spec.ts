@@ -30,13 +30,17 @@ test("sign out clears session and redirects to /login", async ({ page }) => {
   await expect(page.getByRole("link", { name: /Sign in with Keycloak/i })).toBeVisible();
 });
 
-test("switch account clears SSO and redirects to Keycloak login", async ({
+test("switch account goes directly to Keycloak login form (no logout confirmation)", async ({
   page,
 }) => {
   await page.goto("/login");
   await page.getByRole("link", { name: /切換帳號登入/i }).click();
-  // /api/auth/switch deletes session server-side, then redirects to /api/auth/login
-  // which redirects to Keycloak auth endpoint — no confirmation page
-  await page.waitForURL(/localhost:8080.*openid-connect\/auth/, { timeout: 10000 });
-  await expect(page.url()).toContain("openid-connect/auth");
+  // Must land on Keycloak auth endpoint (not logout endpoint) with prompt=login
+  await page.waitForURL(/localhost:8080.*openid-connect\/auth.*prompt=login/, {
+    timeout: 10000,
+  });
+  expect(page.url()).toContain("openid-connect/auth");
+  expect(page.url()).toContain("prompt=login");
+  // Keycloak login form (not logout confirmation) should be visible
+  await expect(page.locator("#username")).toBeVisible({ timeout: 5000 });
 });
