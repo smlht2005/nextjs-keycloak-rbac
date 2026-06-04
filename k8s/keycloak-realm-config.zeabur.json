@@ -12,7 +12,7 @@
       "directAccessGrantsEnabled": false,
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://nextjs-his-rbac.zeabur.app/login"
+        "post.logout.redirect.uris": "https://nextjs-his-rbac.zeabur.app/login##https://nextjs-his-rbac.zeabur.app/api/auth/login"
       },
       "redirectUris": [
         "https://nextjs-his-rbac.zeabur.app/api/auth/callback"
