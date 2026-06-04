@@ -8,6 +8,7 @@
       "enabled": true,
       "publicClient": false,
       "standardFlowEnabled": true,
+      "serviceAccountsEnabled": true,
       "directAccessGrantsEnabled": false,
       "attributes": {
         "pkce.code.challenge.method": "S256"
@@ -125,5 +126,13 @@
       ]
     }
   ],
-  "defaultDefaultClientScopes": ["profile", "email", "roles"]
+  "defaultDefaultClientScopes": ["profile", "email", "roles"],
+  "clientScopeMappings": {
+    "nextjs-bff": [
+      {
+        "client": "realm-management",
+        "roles": ["manage-users", "view-users"]
+      }
+    ]
+  }
 }
